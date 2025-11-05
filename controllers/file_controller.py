@@ -18,32 +18,25 @@ class FileController:
         return data[:-pad_len]
 
     # Enkripsi file
-    def encrypt_file(self, input_path, output_path):
-        iv = os.urandom(16)  # IV acak tiap file
+    def encrypt_file(self, input_path):
+        iv = os.urandom(16)
         cipher = Cipher(algorithms.SEED(self.key), modes.CBC(iv), backend=default_backend())
         encryptor = cipher.encryptor()
 
-        with open(input_path, 'rb') as f:
+        with open(input_path, "rb") as f:
             data = f.read()
         enc_data = encryptor.update(self.pad(data)) + encryptor.finalize()
 
-        # Simpan IV di depan ciphertext agar bisa dipakai saat dekripsi
-        with open(output_path, 'wb') as f:
-            f.write(base64.b64encode(iv + enc_data))
-        return output_path
+        return base64.b64encode(iv + enc_data).decode("utf-8")
 
     # Dekripsi file
-    def decrypt_file(self, input_path, output_path):
-        with open(input_path, 'rb') as f:
-            raw = base64.b64decode(f.read())
-
-        iv = raw[:16]               # Ambil IV dari awal
+    def decrypt_file(self, enc_base64):
+        raw = base64.b64decode(enc_base64)
+        iv = raw[:16]
         ciphertext = raw[16:]
 
         cipher = Cipher(algorithms.SEED(self.key), modes.CBC(iv), backend=default_backend())
         decryptor = cipher.decryptor()
         dec_data = self.unpad(decryptor.update(ciphertext) + decryptor.finalize())
 
-        with open(output_path, 'wb') as f:
-            f.write(dec_data)
-        return output_path
+        return dec_data
