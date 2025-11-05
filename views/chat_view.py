@@ -53,6 +53,9 @@ class ChatWindow:
         # Load user list otomatis
         self.load_user_list()
 
+        self.auto_refresh()
+
+
     def load_user_list(self):
         users = self.chat.get_all_users(self.username)
         self.user_listbox.delete(0, tk.END)
@@ -236,6 +239,11 @@ class ChatWindow:
             messagebox.showinfo("Sukses", f"Pesan berhasil diekstrak dan disimpan di:\n{save_path}")
         except Exception as e:
             messagebox.showerror("Error", f"Gagal mengekstrak pesan:\n{e}")
+    
+    def auto_refresh(self):
+        self.refresh_chat()
+        self.root.after(2000, self.auto_refresh)  # refresh tiap 2 detik
+
 
     def run(self):
         self.root.mainloop()
