@@ -54,6 +54,10 @@ class ChatController:
             elif msg_type == "stegano":
                 # Pesan steganografi: tampilkan gambar yang dikirim
                 result.append((s, r, msg, msg_type, filename))
+        
+        if rows:
+            self.last_message_id = rows[-1][0] if hasattr(self, 'last_message_id') else None
+
         return result
 
 

@@ -6,6 +6,7 @@ from controllers.file_controller import FileController
 from controllers.stegano_controller import SteganoController
 from PIL import Image, ImageTk
 import datetime
+import shutil
 
 class ChatWindow:
     def __init__(self, username):
@@ -35,7 +36,9 @@ class ChatWindow:
 
         self.chat_display = tk.Text(self.chat_frame, state='disabled', width=60, height=20, bg="#111", fg="white")
         self.chat_display.pack(padx=10, pady=10)
-        self.chat_display.bind("<Button-1>", self.on_chat_click)
+
+        # 🔹 variabel untuk menyimpan posisi gambar steganografi agar bisa dikenali saat diklik
+        self.image_positions = {}  
 
         # Input + tombol
         input_frame = tk.Frame(self.chat_frame, bg="#111")
@@ -46,15 +49,22 @@ class ChatWindow:
         tk.Button(input_frame, text="File", command=self.send_file, bg="#264653", fg="white").grid(row=1, column=0, pady=5)
         tk.Button(input_frame, text="Stego Image", command=self.send_stegano, bg="#e9c46a", fg="black").grid(row=1, column=1, pady=5)
 
+        # 🔹 tombol global untuk ekstraksi pesan
+        tk.Button(self.chat_frame, text="Ekstrak Pesan dari Gambar",
+                  command=self.extract_stego_global, bg="#f4a261", fg="black", font=("Arial", 10, "bold")).pack(pady=(10, 5))
+
         # Variabel
         self.current_receiver = None
         self.img_refs = []
+        self.last_message_count = 0
+
+        # Binding klik untuk deteksi klik pada gambar
+        self.chat_display.bind("<Button-1>", self.on_image_click)
 
         # Load user list otomatis
         self.load_user_list()
 
         self.auto_refresh()
-
 
     def load_user_list(self):
         users = self.chat.get_all_users(self.username)
@@ -80,6 +90,8 @@ class ChatWindow:
 
         self.chat_display.config(state='normal')
         self.chat_display.delete("1.0", tk.END)
+        self.image_positions.clear()
+        self.img_refs.clear()
 
         messages = self.chat.get_messages(self.username, self.current_receiver)
 
@@ -99,57 +111,50 @@ class ChatWindow:
                         img = Image.open(img_path)
                         img.thumbnail((200, 200))
                         img_tk = ImageTk.PhotoImage(img)
+                        pos_index = self.chat_display.index(tk.END)
+
+                        # Simpan posisi gambar agar bisa dideteksi saat diklik
+                        self.image_positions[pos_index] = img_path
+
                         self.chat_display.image_create(tk.END, image=img_tk)
-                        self.chat_display.insert(tk.END, "\n")
-
-                        if not hasattr(self, 'img_refs'):
-                            self.img_refs = []
-                        self.img_refs.append(img_tk)
-
-                        btn = tk.Button(self.chat_display, text="Ekstrak Pesan",
-                                        command=lambda p=img_path: self.extract_stego_message(p),
-                                        bg="#2a9d8f", fg="white")
-                        self.chat_display.window_create(tk.END, window=btn)
                         self.chat_display.insert(tk.END, "\n\n")
+                        self.img_refs.append(img_tk)
                     except Exception as e:
                         self.chat_display.insert(tk.END, f"[Gagal menampilkan gambar: {e}]\n")
                 else:
                     self.chat_display.insert(tk.END, f"[Gambar tidak ditemukan: {filename}]\n")
 
         self.chat_display.config(state='disabled')
+        self.chat_display.yview_moveto(1.0)
 
-    def on_chat_click(self, event):
-        index = self.chat_display.index(f"@{event.x},{event.y}")
-        line = self.chat_display.get(f"{index} linestart", f"{index} lineend")
-        if "📁" not in line:
-            return
-        parts = line.split(": ")
-        if len(parts) < 2:
-            return
-        filename = parts[-1].strip()
-        confirm = messagebox.askyesno("Download File", f"Apakah Anda ingin mendownload file '{filename}'?")
-        if not confirm:
-            return
-        enc_path = f"samba_share/files/{filename}"
-        if not os.path.exists(enc_path):
-            messagebox.showerror("Error", f"File terenkripsi tidak ditemukan:\n{enc_path}")
-            return
-        save_path = filedialog.asksaveasfilename(
-            title="Simpan file hasil dekripsi",
-            defaultextension="",
-            initialfile=filename.replace(".enc", "")
-        )
-        if not save_path:
-            return
+    # 🔹 fungsi klik pada gambar di chat → langsung download
+    def on_image_click(self, event):
         try:
-            with open(enc_path, "r") as f:
-                enc_base64 = f.read()
-            dec_bytes = self.file_ctrl.decrypt_file(enc_base64)
-            with open(save_path, "wb") as out_f:
-                out_f.write(dec_bytes)
-            messagebox.showinfo("Sukses", f"File berhasil didekripsi dan disimpan di:\n{save_path}")
+            index = self.chat_display.index(f"@{event.x},{event.y}")
+            nearest_pos = None
+            min_diff = 999999
+            for pos in self.image_positions.keys():
+                diff = abs(float(self.chat_display.index(pos).split('.')[0]) - float(index.split('.')[0]))
+                if diff < min_diff:
+                    nearest_pos = pos
+                    min_diff = diff
+
+            if nearest_pos and min_diff < 2:  # batas toleransi klik
+                img_path = self.image_positions[nearest_pos]
+                if not os.path.exists(img_path):
+                    messagebox.showerror("Error", "Gambar tidak ditemukan di direktori lokal.")
+                    return
+
+                save_path = filedialog.asksaveasfilename(
+                    title="Simpan Gambar",
+                    defaultextension=".png",
+                    initialfile=os.path.basename(img_path)
+                )
+                if save_path:
+                    shutil.copy(img_path, save_path)
+                    messagebox.showinfo("Sukses", f"Gambar berhasil disimpan di:\n{save_path}")
         except Exception as e:
-            messagebox.showerror("Gagal", f"Terjadi kesalahan saat dekripsi:\n{e}")
+            print(f"[KlikGambarError] {e}")
 
     def send_message(self):
         msg = self.entry.get()
@@ -219,31 +224,56 @@ class ChatWindow:
         messagebox.showinfo("Sukses", f"Pesan disisipkan dan dikirim ke {self.current_receiver}")
         self.entry.delete(0, tk.END)
         self.show_messages()
-    
-    def extract_stego_message(self, img_path):
-        try:
-            message = self.stegano.extract_message(img_path)
-            if not message:
-                messagebox.showerror("Error", "Tidak ditemukan pesan tersembunyi dalam gambar.")
-                return
 
-            save_path = filedialog.asksaveasfilename(
-                title="Simpan hasil ekstraksi",
-                defaultextension=".txt",
-                initialfile="pesan_tersembunyi.txt"
-            )
-            if not save_path:
-                return
-            with open(save_path, "w", encoding="utf-8") as f:
-                f.write(message)
-            messagebox.showinfo("Sukses", f"Pesan berhasil diekstrak dan disimpan di:\n{save_path}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Gagal mengekstrak pesan:\n{e}")
-    
+    # 🔹 tombol global untuk ekstraksi pesan dari gambar mana pun
+    def extract_stego_global(self):
+        img_path = filedialog.askopenfilename(
+            title="Pilih gambar PNG untuk ekstraksi",
+            filetypes=[("PNG Images", "*.png")]
+        )
+        if not img_path:
+            return
+        message = self.stegano.extract_message(img_path)
+        if not message:
+            messagebox.showinfo("Tidak ada pesan", "Tidak ditemukan pesan tersembunyi dalam gambar ini.")
+            return
+
+        save_path = filedialog.asksaveasfilename(
+            title="Simpan hasil ekstraksi",
+            defaultextension=".txt",
+            initialfile="pesan_tersembunyi.txt"
+        )
+        if not save_path:
+            return
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write(message)
+        messagebox.showinfo("Sukses", f"Pesan berhasil diekstrak dan disimpan di:\n{save_path}")
+
     def auto_refresh(self):
-        self.refresh_chat()
-        self.root.after(2000, self.auto_refresh)  # refresh tiap 2 detik
+        try:
+            if self.current_receiver:
+                from models.db_model import Database
+                temp_db = Database()
+                sql = """
+                SELECT id, sender, receiver, message, msg_type, filename
+                FROM messages
+                WHERE (sender=%s AND receiver=%s) OR (sender=%s AND receiver=%s)
+                ORDER BY id DESC LIMIT 1
+                """
+                last_row = temp_db.fetch(sql, (self.username, self.current_receiver, self.current_receiver, self.username))
+                temp_db.close()
 
+                if last_row:
+                    last_id = last_row[0][0]
+                    if getattr(self, "last_msg_id", None) != last_id:
+                        self.last_msg_id = last_id
+                        print(f"[AUTO REFRESH] Pesan baru terdeteksi (id={last_id})")
+                        self.show_messages()
+
+        except Exception as e:
+            print(f"[AutoRefreshError] {e}")
+
+        self.root.after(1000, self.auto_refresh)
 
     def run(self):
         self.root.mainloop()

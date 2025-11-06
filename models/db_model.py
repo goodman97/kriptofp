@@ -5,7 +5,7 @@ from config.db_config import DB_CONFIG
 class Database:
     def __init__(self):
         try:
-            self.conn = mysql.connector.connect(**DB_CONFIG)
+            self.conn = mysql.connector.connect(**DB_CONFIG, autocommit=True)
             self.cursor = self.conn.cursor()
         except Error as e:
             print(f"[DB ERROR] {e}")
