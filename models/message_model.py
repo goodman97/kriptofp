@@ -1,7 +1,6 @@
 import sqlite3
 from config.db_config import DB_PATH
 
-# Representasi satu pesan
 class Message:
     def __init__(self, sender, receiver, content, msg_type="text", filename=None):
         self.sender = sender
@@ -11,7 +10,6 @@ class Message:
         self.filename = filename
 
 
-# Model untuk operasi database
 class MessageModel:
     def __init__(self):
         self.conn = sqlite3.connect(DB_PATH)
