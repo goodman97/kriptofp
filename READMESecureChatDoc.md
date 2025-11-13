@@ -1,4 +1,4 @@
-# Secure Chat – Multi-Layered Cryptography & Steganography System
+# Secure Chat  Multi-Layered Cryptography & Steganography System
 
 Dokumentasi ini menjelaskan penggunaan dan peran dari setiap algoritma yang digunakan dalam proyek **Secure Chat berbasis kriptografi dan steganografi**.
 
@@ -15,7 +15,7 @@ Aplikasi Secure Chat ini memiliki **beberapa lapisan keamanan** yang saling beke
 
 ---
 
-## 1️ SHAKE128 – Hashing Dinamis
+## 1️ SHAKE128  Hashing Dinamis
 
 ### Fungsi
 SHAKE128 digunakan untuk **menghasilkan kunci enkripsi dari password pengguna**.  
@@ -69,7 +69,7 @@ def camellia_decrypt(enc_data, key):
 
 ---
 
-## 3️ Super Encryption – Kombinasi Vigenère + Block Permutation
+## 3️ Super Encryption  Kombinasi Vigenère + Block Permutation
 
 ###  Fungsi
 Super Encryption digunakan untuk **meningkatkan kekuatan enkripsi teks** dengan menggabungkan dua teknik:
@@ -105,7 +105,7 @@ def super_encrypt(text, key):
 
 ---
 
-## 4️ SEED-CBC – Enkripsi Berantai Aman
+## 4️ SEED-CBC  Enkripsi Berantai Aman
 
 ###  Fungsi
 Algoritma SEED (dikembangkan oleh KISA, Korea) digunakan dalam mode **CBC (Cipher Block Chaining)** untuk mengenkripsi data dengan tingkat keamanan tinggi.  
@@ -134,7 +134,7 @@ def seed_decrypt(ciphertext, key, iv):
 
 ---
 
-## 5️ Enhanced LSB – Steganografi pada Gambar
+## 5️ Enhanced LSB  Steganografi pada Gambar
 
 ###  Fungsi
 Enhanced LSB digunakan untuk **menyembunyikan pesan terenkripsi ke dalam gambar PNG**.  
