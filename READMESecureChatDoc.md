@@ -1,10 +1,10 @@
-# 🔐 Secure Chat – Multi-Layered Cryptography & Steganography System
+# Secure Chat – Multi-Layered Cryptography & Steganography System
 
 Dokumentasi ini menjelaskan penggunaan dan peran dari setiap algoritma yang digunakan dalam proyek **Secure Chat berbasis kriptografi dan steganografi**.
 
 ---
 
-## 🧩 Arsitektur Sistem
+## Arsitektur Sistem
 
 Aplikasi Secure Chat ini memiliki **beberapa lapisan keamanan** yang saling bekerja sama:
 
@@ -15,13 +15,13 @@ Aplikasi Secure Chat ini memiliki **beberapa lapisan keamanan** yang saling beke
 
 ---
 
-## 1️⃣ SHAKE128 – Hashing Dinamis
+## 1️ SHAKE128 – Hashing Dinamis
 
-### 📘 Fungsi
+### Fungsi
 SHAKE128 digunakan untuk **menghasilkan kunci enkripsi dari password pengguna**.  
 Karena SHAKE128 bersifat **extendable output**, kita bisa menentukan panjang hash yang diinginkan (misalnya 16 byte untuk kunci Camellia/SEED).
 
-### 💻 Implementasi
+###  Implementasi
 ```python
 from hashlib import shake_128
 
@@ -29,20 +29,20 @@ def hash_password(password):
     return shake_128(password.encode()).hexdigest(64)
 ```
 
-### 🧠 Peran
+###  Peran
 - Mengubah password user menjadi key unik.
 - Mencegah penyimpanan password dalam bentuk plaintext.
 - Memberi entropi tinggi untuk algoritma enkripsi selanjutnya.
 
 ---
 
-## 2️⃣ Camellia Cipher – Enkripsi Blok Simetris
+## 2️ Camellia Cipher – Enkripsi Blok Simetris
 
-### 📘 Fungsi
+###  Fungsi
 Camellia digunakan untuk **mengenkripsi data teks sebelum disisipkan ke gambar**.  
 Algoritma ini mirip dengan AES, memiliki **128-bit blok**, dan aman secara kriptografis.
 
-### 💻 Implementasi
+###  Implementasi
 ```python
 from Cryptodome.Cipher import Camellia
 import base64
@@ -62,21 +62,21 @@ def camellia_decrypt(enc_data, key):
     return dec[:-ord(dec[-1])]
 ```
 
-### 🧠 Peran
+###  Peran
 - Melindungi isi pesan sebelum proses embedding (penyisipan).
 - Menambah keamanan terhadap serangan plaintext langsung.
 - Memberi lapisan enkripsi cepat dan ringan untuk pesan teks.
 
 ---
 
-## 3️⃣ Super Encryption – Kombinasi Vigenère + Block Permutation
+## 3️ Super Encryption – Kombinasi Vigenère + Block Permutation
 
-### 📘 Fungsi
+###  Fungsi
 Super Encryption digunakan untuk **meningkatkan kekuatan enkripsi teks** dengan menggabungkan dua teknik:
 1. **Vigenère Cipher** → menggeser huruf berdasarkan kunci.
 2. **Block Permutation** → membalik urutan setiap blok karakter.
 
-### 💻 Implementasi
+###  Implementasi
 ```python
 def vigenere_encrypt(text, key):
     key = key.lower()
@@ -98,20 +98,20 @@ def super_encrypt(text, key):
     return block_permute(vigenere_encrypt(text, key))
 ```
 
-### 🧠 Peran
+###  Peran
 - Menyediakan **lapisan enkripsi tambahan** sebelum embedding.  
 - Menyulitkan analisis pola ciphertext (frekuensi huruf).  
 - Aman untuk pesan teks pendek dan ringan secara komputasi.
 
 ---
 
-## 4️⃣ SEED-CBC – Enkripsi Berantai Aman
+## 4️ SEED-CBC – Enkripsi Berantai Aman
 
-### 📘 Fungsi
+###  Fungsi
 Algoritma SEED (dikembangkan oleh KISA, Korea) digunakan dalam mode **CBC (Cipher Block Chaining)** untuk mengenkripsi data dengan tingkat keamanan tinggi.  
 Setiap blok bergantung pada blok sebelumnya, sehingga pola data tidak mudah ditebak.
 
-### 💻 Implementasi (dengan AES sebagai analogi)
+###  Implementasi (dengan AES sebagai analogi)
 ```python
 from Cryptodome.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -127,20 +127,20 @@ def seed_decrypt(ciphertext, key, iv):
     return decrypted.decode()
 ```
 
-### 🧠 Peran
+###  Peran
 - Menyediakan lapisan enkripsi blok yang lebih kuat.  
 - Menjamin keamanan tinggi jika digunakan bersama SHAKE128 sebagai pembangkit kunci.  
 - Mencegah pola berulang pada ciphertext.
 
 ---
 
-## 5️⃣ Enhanced LSB – Steganografi pada Gambar
+## 5️ Enhanced LSB – Steganografi pada Gambar
 
-### 📘 Fungsi
+###  Fungsi
 Enhanced LSB digunakan untuk **menyembunyikan pesan terenkripsi ke dalam gambar PNG**.  
 Metode ini mengganti **bit paling tidak signifikan (Least Significant Bit)** dari setiap channel warna RGB.
 
-### 💻 Implementasi
+###  Implementasi
 ```python
 from PIL import Image
 
@@ -166,14 +166,14 @@ def embed_message(image_path, message, output_path):
     encoded.save(output_path)
 ```
 
-### 🧠 Peran
+###  Peran
 - Menyembunyikan ciphertext agar tidak terlihat oleh mata manusia.
 - Mengubah hanya bit terakhir tiap channel RGB (perubahan visual minimal).  
 - Menggunakan terminator `"#####"` untuk menandai akhir pesan.
 
 ---
 
-## 🔗 Alur Lengkap Sistem
+##  Alur Lengkap Sistem
 
 ```text
 [User Input Pesan + Password]
@@ -202,7 +202,7 @@ def embed_message(image_path, message, output_path):
 
 ---
 
-## 🧠 Kesimpulan
+##  Kesimpulan
 
 | Lapisan | Algoritma | Tujuan Utama | Jenis |
 |----------|------------|---------------|--------|
@@ -212,7 +212,7 @@ def embed_message(image_path, message, output_path):
 | 4 | SEED-CBC | Enkripsi chaining simetris | Block Cipher |
 | 5 | Enhanced LSB | Menyembunyikan ciphertext di gambar | Steganografi |
 
-🔒 Kombinasi algoritma ini membentuk sistem **multi-layer security**, di mana:
+ Kombinasi algoritma ini membentuk sistem **multi-layer security**, di mana:
 - Hashing → melindungi kunci  
 - Enkripsi → melindungi isi pesan  
 - Steganografi → melindungi eksistensi pesan
