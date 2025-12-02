@@ -12,14 +12,12 @@ class AuthController:
         result = self.db.fetch(sql, (username, hashed))
 
         if result:
-            # update status online
             self.db.execute(
                 "UPDATE users SET last_active=%s WHERE username=%s",
                 (datetime.datetime.now(), username)
             )
             return True
         else:
-            # user belum ada → tambahkan
             self.db.execute(
                 "INSERT INTO users (username, password, last_active) VALUES (%s, %s, %s)",
                 (username, hashed, datetime.datetime.now())
