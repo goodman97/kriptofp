@@ -2,38 +2,45 @@ from models.db_model import Database
 from models.super_encryption import super_encrypt, super_decrypt
 from controllers.file_controller import FileController
 
-
 class ChatController:
     def __init__(self):
         self.db = Database()
         self.file_ctrl = FileController()
 
-    def send_message(self, sender, receiver, content, msg_type="text", filename=None):
-        enc_msg = super_encrypt(content, "securekey")
-        sql = """
-            INSERT INTO messages (sender, receiver, message, msg_type, filename)
-            VALUES (%s, %s, %s, %s, %s)
+    def send_message(self, sender, receiver, message, msg_type="text", filename=None):
+        if msg_type == "text":
+            encrypted = super_encrypt(message, "securekey")
+        else:
+            encrypted = message  # file → message = filename
+
+        self.db.execute(
+            "INSERT INTO messages (sender, receiver, message, msg_type, filename) VALUES (%s, %s, %s, %s, %s)",
+            (sender, receiver, encrypted, msg_type, filename)
+        )
+
+    def get_all_users(self, exclude_username):
         """
-        self.db.execute(sql, (sender, receiver, enc_msg, msg_type, filename))
+        Kembalikan list tuple (username, last_active) untuk semua user selain exclude_username.
+        Dipakai oleh ChatWindow.load_user_list().
+        """
+        sql = "SELECT username, last_active FROM users WHERE username != %s"
+        return self.db.fetch(sql, (exclude_username,))
 
-
-    def send_file(self, sender, receiver, filepath):
-        encrypted_base64 = self.file_ctrl.encrypt_file(filepath)
-        filename = filepath.split("/")[-1]
+    # FILE dikirim lewat folder, bukan lewat DB
+    def send_file(self, sender, receiver, filename):
         sql = """
         INSERT INTO messages (sender, receiver, message, msg_type, filename)
         VALUES (%s, %s, %s, %s, %s)
         """
-        self.db.execute(sql, (sender, receiver, encrypted_base64, "file", filename))
+        # message di DB dikosongkan
+        self.db.execute(sql, (sender, receiver, "", "file", filename))
 
-    
     def send_stego_image(self, sender, receiver, image_filename):
         sql = """
         INSERT INTO messages (sender, receiver, message, msg_type, filename)
         VALUES (%s, %s, %s, %s, %s)
         """
         self.db.execute(sql, (sender, receiver, "", "stegano", image_filename))
-
 
     def get_messages(self, user_a, user_b):
         sql = """
@@ -47,26 +54,15 @@ class ChatController:
 
         for s, r, msg, msg_type, filename in rows:
             if msg_type == "text":
-                decrypted = super_decrypt(msg, "securekey")
+                try:
+                    decrypted = super_decrypt(msg, "securekey")   # ⬅ Dekripsi di sini!
+                except:
+                    decrypted = "[DECRYPTION ERROR]"
+
                 result.append((s, r, decrypted, msg_type, None))
-            elif msg_type == "file":
-                result.append((s, r, msg, msg_type, filename))
-            elif msg_type == "stegano":
-                # Pesan steganografi: tampilkan gambar yang dikirim
-                result.append((s, r, msg, msg_type, filename))
-        
-        if rows:
-            self.last_message_id = rows[-1][0] if hasattr(self, 'last_message_id') else None
+
+            else:
+                # file & stego -> message kosong, hanya filename
+                result.append((s, r, "", msg_type, filename))
 
         return result
-
-
-    def decrypt_file_from_db(self, enc_base64, output_path):
-        decrypted_bytes = self.file_ctrl.decrypt_file(enc_base64)
-        with open(output_path, "wb") as f:
-            f.write(decrypted_bytes)
-        return output_path
-
-    def get_all_users(self, exclude_username):
-        sql = "SELECT username, last_active FROM users WHERE username != %s"
-        return self.db.fetch(sql, (exclude_username,))

@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import messagebox
 from controllers.auth_controller import AuthController
 from views.chat_view import ChatWindow
 
@@ -23,17 +24,24 @@ class LoginWindow:
     def login(self):
         user = self.username.get()
         pwd = self.password.get()
+
         if self.auth.login_user(user, pwd):
+            # Login berhasil, buka chat
             self.root.destroy()
             ChatWindow(user).run()
         else:
-            self.label.config(text="Login gagal!")
+            self.label.config(text="Login gagal! Username atau password salah.")
 
     def register(self):
         user = self.username.get()
         pwd = self.password.get()
-        self.auth.register_user(user, pwd)
-        self.label.config(text="Akun berhasil dibuat!")
+
+        result = self.auth.register_user(user, pwd)
+
+        if result:
+            self.label.config(text="Akun berhasil dibuat!")
+        else:
+            self.label.config(text="Username sudah digunakan!")
 
     def run(self):
         self.root.mainloop()
