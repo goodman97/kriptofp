@@ -24,10 +24,22 @@ class SteganoController:
             encoded = image.copy()
             width, height = image.size
 
+            message_original_len = len(message)
+
+            # DEBUG 1
+            print("\n===== DEBUG EMBED =====")
+            print(f"[+] Panjang pesan asli: {message_original_len} char")
+            print(f"[+] Terminator: '{self.terminator}' (len={len(self.terminator)})")
+
             message += self.terminator
             binary_msg = self._to_bin(message)
             data_len = len(binary_msg)
             capacity = width * height * 3
+
+            # DEBUG 2
+            print(f"[+] Gambar: {width} x {height}")
+            print(f"[+] Kapasitas gambar (bit): {capacity}")
+            print(f"[+] Total bit pesan+terminator: {data_len}")
 
             if data_len > capacity:
                 print(f"[ERROR] Pesan terlalu panjang ({data_len} bit > kapasitas {capacity} bit)")
@@ -47,6 +59,10 @@ class SteganoController:
                 if data_index >= data_len:
                     break
 
+            print(f"[+] Embed selesai. Total bit tertanam: {data_index}")
+            print("[+] STATUS: Embedded OK")
+            print("=========================\n")
+
             encoded.save(output_path)
             return True
 
@@ -55,30 +71,46 @@ class SteganoController:
             return False
 
     def extract_message(self, image_path):
-        """
-        Mengekstrak pesan tersembunyi dari gambar stego.
-        Mengembalikan string pesan asli tanpa terminator.
-        """
         try:
             image = Image.open(image_path)
-            binary_data = ""
-            for pixel in list(image.getdata()):
-                for value in pixel[:3]:
-                    binary_data += str(value & 1)
 
-            all_bytes = [binary_data[i:i+8] for i in range(0, len(binary_data), 8)]
-            decoded_data = ""
-            for byte in all_bytes:
-                decoded_data += chr(int(byte, 2))
-                if decoded_data.endswith(self.terminator):
-                    break
+            bits = []
+            decoded_chars = []
+            terminator = self.terminator
+            t_len = len(terminator)
 
-            if not decoded_data.endswith(self.terminator):
-                print("[WARNING] Tidak ditemukan pesan tersembunyi dalam gambar.")
-                return None
+            for value in (v & 1 for px in image.getdata() for v in px[:3]):
+                bits.append(str(value))
 
-            return decoded_data[:-len(self.terminator)]
+                if len(bits) == 8:
+                    byte = "".join(bits)
+                    bits.clear()
+
+                    try:
+                        char = chr(int(byte, 2))
+                    except:
+                        char = "?"
+
+                    decoded_chars.append(char)
+
+                    # DEBUG PARTIAL PREVIEW
+                    if len(decoded_chars) % 500 == 0:
+                        print(f"[DEBUG] Sudah membaca {len(decoded_chars)} karakter...")
+
+                    # Cek terminator
+                    if len(decoded_chars) >= t_len:
+                        if "".join(decoded_chars[-t_len:]) == terminator:
+                            pesan_final = "".join(decoded_chars[:-t_len])
+                            print("[+] Terminator ditemukan!")
+                            print(f"[+] Panjang pesan diekstraksi: {len(pesan_final)} char")
+                            print("============================\n")
+                            return pesan_final
+
+            print("[WARNING] Terminator tidak ditemukan.")
+            print(f"[INFO] Total karakter terbaca: {len(decoded_chars)}")
+            print("============================\n")
+            return None
 
         except Exception as e:
-            print(f"[ERROR] Gagal mengekstrak pesan: {e}")
+            print(f"[ERROR] Ekstraksi gagal: {e}")
             return None

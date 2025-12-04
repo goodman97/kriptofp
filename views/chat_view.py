@@ -7,6 +7,8 @@ from controllers.stegano_controller import SteganoController
 from PIL import Image, ImageTk
 import datetime
 import shutil
+import threading
+import queue
 
 class ChatWindow:
     def __init__(self, username):
@@ -62,7 +64,7 @@ class ChatWindow:
                   bg="#e9c46a", fg="black").grid(row=1, column=1, pady=5)
 
         tk.Button(self.chat_frame, text="Ekstrak Pesan dari Gambar",
-                  command=self.extract_stego_global, bg="#f4a261",
+                  command=self.start_extract_stego_thread, bg="#f4a261",
                   fg="black", font=("Arial", 10, "bold")).pack(pady=(10, 5))
 
         self.current_receiver = None
@@ -133,30 +135,38 @@ class ChatWindow:
                 sender = "Me" if s == self.username else s
                 clean_name = filename.replace(".enc", "")
 
-                # Tampilkan teks tombol (klik)
                 start_pos = self.chat_display.index("end-1c")
                 self.chat_display.insert(tk.END, f"📁 {sender} mengirim file: {clean_name}\n")
 
-                # Simpan posisi untuk klik
                 self.file_positions[start_pos] = filename
 
             elif msg_type == "stegano":
                 label = f"🖼️ Me mengirim gambar:\n" if s == self.username else f"🖼️ {s} mengirim gambar:\n"
                 self.chat_display.insert(tk.END, label)
+
                 img_path = f"samba_share/images/{filename}"
 
                 if os.path.exists(img_path):
                     try:
                         img = Image.open(img_path)
                         img.thumbnail((200, 200))
-                        img_tk = ImageTk.PhotoImage(img)
-                        pos_index = self.chat_display.index(tk.END)
 
-                        self.image_positions[pos_index] = img_path
+                        tk_img = ImageTk.PhotoImage(img)
+                        self.img_refs.append(tk_img)
 
-                        self.chat_display.image_create(tk.END, image=img_tk)
-                        self.chat_display.insert(tk.END, "\n\n")
-                        self.img_refs.append(img_tk)
+                        img_label = tk.Label(
+                            self.chat_display,
+                            image=tk_img,
+                            cursor="hand2"
+                        )
+                        img_label.image_path = img_path
+
+                        img_label.bind("<Button-1>",
+                            lambda e, p=img_path: self.download_image_direct(p)
+                        )
+
+                        self.chat_display.window_create("end", window=img_label)
+                        self.chat_display.insert("end", "\n")
 
                     except Exception as e:
                         self.chat_display.insert(tk.END, f"[Gagal menampilkan gambar: {e}]\n")
@@ -165,6 +175,21 @@ class ChatWindow:
 
         self.chat_display.config(state='disabled')
         self.chat_display.yview_moveto(1.0)
+
+    def download_image_direct(self, img_path):
+        if not os.path.exists(img_path):
+            messagebox.showerror("Error", "Gambar tidak ditemukan.")
+            return
+
+        save_path = filedialog.asksaveasfilename(
+            title="Simpan Gambar",
+            defaultextension=".png",
+            initialfile=os.path.basename(img_path)
+        )
+
+        if save_path:
+            shutil.copy(img_path, save_path)
+            messagebox.showinfo("Sukses", f"Gambar disimpan di:\n{save_path}")
 
     def on_image_click(self, event):
         try:
@@ -212,7 +237,6 @@ class ChatWindow:
                     nearest_pos = pos
                     min_diff = diff
 
-            # Jika klik tepat (maksimal selisih 1 baris)
             if nearest_pos and min_diff < 1.0:
                 filename = self.file_positions[nearest_pos]
                 enc_path = f"samba_share/files/{filename}"
@@ -221,18 +245,15 @@ class ChatWindow:
                     messagebox.showerror("Error", "File terenkripsi tidak ditemukan.")
                     return
 
-                # Read encrypted base64
                 with open(enc_path, "r", encoding="utf-8") as f:
                     enc_base64 = f.read().strip()
 
-                # Decrypt
                 try:
                     decrypted_bytes = self.file_ctrl.decrypt_file(enc_base64)
                 except Exception as e:
                     messagebox.showerror("Error", f"Decrypt gagal: {e}")
                     return
 
-                # Save file hasil decrypt
                 save_path = filedialog.asksaveasfilename(
                     title="Simpan File",
                     initialfile=filename.replace(".enc", "")
@@ -304,7 +325,8 @@ class ChatWindow:
             return
 
         os.makedirs("samba_share/images", exist_ok=True)
-        output_path = f"samba_share/images/stego_{self.username}_{self.current_receiver}.png"
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        output_path = f"samba_share/images/stego_{self.username}_{self.current_receiver}_{timestamp}.png"
 
         success = self.stegano.embed_message(img_path, msg, output_path)
         if not success:
@@ -341,31 +363,74 @@ class ChatWindow:
 
         messagebox.showinfo("Berhasil", f"File berhasil diunduh ke:\n{save_path}")
 
-    def extract_stego_global(self):
-        img_path = filedialog.askopenfilename(
-            title="Pilih gambar PNG",
-            filetypes=[("PNG Images", "*.png")]
-        )
+    def start_extract_stego_thread(self):
+        """Mulai proses tetapi dialog file tetap dibuka di main thread."""
+        self.stego_queue = queue.Queue()
+
+        def ask_image():
+            path = filedialog.askopenfilename(
+                title="Pilih gambar PNG",
+                filetypes=[("PNG Images", "*.png")]
+            )
+            self.stego_queue.put(path)
+
+        self.root.after(0, ask_image)
+
+        threading.Thread(target=self._wait_image_selection, daemon=True).start()
+
+
+    def _wait_image_selection(self):
+        """Menunggu hasil dialog file, lalu ekstraksi di thread background."""
+        img_path = None
+        while img_path is None:
+            try:
+                img_path = self.stego_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+
         if not img_path:
             return
 
-        message = self.stegano.extract_message(img_path)
-        if not message:
-            messagebox.showinfo("Tidak ada pesan", "Tidak ditemukan pesan.")
-            return
+        self._extract_stego_thread(img_path)
 
-        save_path = filedialog.asksaveasfilename(
-            title="Simpan hasil ekstraksi",
-            defaultextension=".txt",
-            initialfile="pesan_tersembunyi.txt"
-        )
-        if not save_path:
-            return
 
-        with open(save_path, "w", encoding="utf-8") as f:
-            f.write(message)
+    def _extract_stego_thread(self, img_path):
+        try:
+            message = self.stegano.extract_message(img_path)
 
-        messagebox.showinfo("Sukses", f"Pesan disimpan di:\n{save_path}")
+            if not message:
+                self.root.after(0, lambda:
+                    messagebox.showinfo("Tidak ada pesan", "Tidak ditemukan pesan.")
+                )
+                return
+
+            def save_dialog():
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                default_filename = f"msg_{self.username}_{self.current_receiver}_{timestamp}.txt"
+
+                save_path = filedialog.asksaveasfilename(
+                    title="Simpan hasil ekstraksi",
+                    defaultextension=".txt",
+                    initialfile=default_filename
+                )
+
+                if not save_path:
+                    return
+
+                with open(save_path, "w", encoding="utf-8") as f:
+                    f.write(message)
+
+                messagebox.showinfo(
+                    "Sukses",
+                    f"Pesan berhasil disimpan di:\n{save_path}"
+                )
+
+            self.root.after(0, save_dialog)
+
+        except Exception as e:
+            self.root.after(0, lambda:
+                messagebox.showerror("Error", str(e))
+            )
 
     def auto_refresh(self):
         try:
